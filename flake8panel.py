@@ -1,92 +1,47 @@
 """
 Flake8 integration for Wing IDE.
 
-Based on previous work by Stefan Tjarks <stefan@tjarks.de>
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-----------------------------------------------------------------------------
-Change Log
-----------------------------------------------------------------------------
-
-Version 0.1 (2009-10-8)
-
-* First release
-
-Version 0.2 (2009-10-8)
-
-* Filter *.py files if a package is scanned
-* Show only filenames on package scan
-* Fixed wrong file path in panel. Jumping to line in file should work now.
-
-Version 0.3 (2009-10-16)
-
-* Add support for MS Windows.
-
-Version 0.4 (2009-10-22)
-
-* Optional autoload support. Saved file will be check automatically.
-
-Version 0.4.1 (2010-02-23)
-
-* Got my hands on a Windows 7 box. Adjusted the configuration section.
-
-Version 0.5 (2013-08-16)
-
-* Updated to WingIDE 5
-* Updated configuration instruction for Windows users.
-
------SWITCH TO FLAKE8-----
-
-Version 0.6 (2016-12-30) Graham Ullrich
-
-* Updated to WingIDE 6
-* Using flake8 tool instead of pep8
+Based on previous work Copyright (c) 2009 by Stefan Tjarks <stefan@tjarks.de>
 
 """
-# ------------------------------ CONFIGURATION -----------------------------------------------------
-
-TOOL_COMMAND = 'flake8'
-#For Windows systems
-#TOOL_COMMAND = r"C:\Python26\bin\pep8.exe"
-
-#Add args but don't remove this one!
-TOOL_ARGS = ['--statistics']
-
-#Set to True to activate autoreloading after each file save
-AUTORELOAD = True
-
-# ------------------------------ /CONFIGURATION ----------------------------------------------------
-
-FLAKE8PANEL_VERSION = "0.6"
-
-
+import gettext
 import os
-import sys
-import wingapi
-import time
 import re
+import sys
+import time
+import wingapi
+
+from command import commandmgr
+import guimgr.menus
+from guiutils import wgtk
+from guiutils import dockview
+from guiutils import wingview
+from guiutils import winmgr
+from wingbase import location
+
+# ------------------------------ CONFIGURATION -------------------------------
+
+# Commands and arguments. Default set for *nix based systems. For Windows
+# adjust as follows - with _your_ actual windows directory.
+#
+#    TOOL_COMMAND = r"C:\Python35\python.exe"
+#
+# and add the flake8 script as the first argument in TOOL_ARGS
+#
+#    TOOL_ARGS = [r"C:\Python35\Scripts\flake8.py", ...]
+#
+TOOL_COMMAND = 'flake8'
+TOOL_ARGS = ['--statistics']  # Add args but don't remove this one!
+AUTORELOAD = True  # Set to True to activate autoreloading after file save
+
+# ------------------------------ /CONFIGURATION ------------------------------
+FLAKE8PANEL_VERSION = "0.1"
+
+
 _AI = wingapi.CArgInfo
 
 # Scripts can be internationalized with gettext.    Strings to be translated
 # are sent to _() as in the code below.
-import gettext
 _ = gettext.translation('scripts_flake8panel', fallback=1).ugettext
 
 # This special attribute is used so that the script manager can translate
@@ -108,13 +63,11 @@ gViews = [None]
 ######################################################################
 # Configuration file support
 
-kStatisticParseExpr = re.compile("(^[\d]+)\s+(.+$)")
-kParseableResultParseExpr = re.compile("(^.+):(\d+):(\d+):\s*(.+$)")
+kStatisticParseExpr = re.compile(r"(^[\d]+)\s+(.+$)")
+kParseableResultParseExpr = re.compile(r"(^.+):(\d+):(\d+):\s*(.+$)")
 
 ######################################################################
 # Commands
-
-
 
 
 def flake8_execute(show_panel=True):
@@ -128,6 +81,7 @@ def flake8_execute(show_panel=True):
 def _IsAvailable_flake8_execute():
     python_files = _get_selected_python_files()
     return len(python_files) > 0
+
 
 flake8_execute.available = _IsAvailable_flake8_execute
 
@@ -146,20 +100,12 @@ def _IsAvailable_flake8_package_execute():
     packages = _get_selected_packages()
     return len(packages) > 0
 
+
 flake8_package_execute.available = _IsAvailable_flake8_package_execute
 
 ######################################################################
 # XXX This is advanced scripting that accesses Wing IDE internals, which
 # XXX are subject to change from version to version without notice.
-
-from wingbase import location
-from guiutils import wgtk
-from guiutils import dockview
-from guiutils import wingview
-from guiutils import winmgr
-
-from command import commandmgr
-import guimgr.menus
 
 
 def flake8_show_docs():
@@ -174,7 +120,7 @@ def _get_selected_packages():
     for filename in filenames:
         dirname = os.path.dirname(filename)
         if os.path.exists(os.path.join(dirname, '__init__.py')):
-            if not dirname in packages:
+            if dirname not in packages:
                 packages.append(dirname)
     return packages
 
@@ -294,8 +240,6 @@ def _flake8_execute(filenames):
     last_dot = [int(start_time)]
     dots = []
 
-
-
     def poll():
         if handler.Iterate():
             view._ShowStatusMessage('')
@@ -304,8 +248,9 @@ def _flake8_execute(filenames):
 #            raise Exception("{},{},{},{}".format(stdout, stderr, err, status))
             if err:
                 app.ShowMessageDialog(
-                    _("Flake8 Failed"), _("Error executing Flake8:    "
-                    "Command failed with error=%i; stderr:\n%s") % (err, stderr)
+                    _("Flake8 Failed"),
+                    _("Error executing Flake8:    "
+                      "Command failed with error=%i; stderr:\n%s") % (err, stderr)
                 )
             else:
                 _update_tree(stdout)
@@ -313,10 +258,11 @@ def _flake8_execute(filenames):
         elif time.time() > start_time + timeout:
             view._ShowStatusMessage('')
             stdout, stderr, err, status = handler.Terminate()
-            app.ShowMessageDialog(_("Flake8 Timed Out"), _("Flake8 timed out:    "
-            "Command did not complete within timeout of %i seconds.    "
-            "Right click on the Flake8 tool to configure this value.    "
-            "Output from Flake8:\n\n%s") % (timeout, stderr + stdout))
+            app.ShowMessageDialog(_("Flake8 Timed Out"),
+                                  _("Flake8 timed out:    "
+                                    "Command did not complete within timeout of %i seconds.    "
+                                    "Right click on the Flake8 tool to configure this value.    "
+                                    "Output from Flake8:\n\n%s") % (timeout, stderr + stdout))
             return False
         else:
             if int(time.time()) > last_dot[0]:
@@ -349,6 +295,7 @@ def _init():
     for doc in wingapi.gApplication.GetOpenDocuments():
         _connect_to_presave(doc)
 
+
 if AUTORELOAD:
     _init()
 
@@ -356,6 +303,7 @@ if AUTORELOAD:
 def _GetMimeType(filename):
     loc = location.CreateFromName(filename)
     return wingapi.gApplication.fSingletons.fFileAttribMgr.GetProbableMimeType(loc)
+
 
 # Note that panel IDs must be globally unique so all user-provided panels
 # MUST add a random uniquifier after '#'.    The panel can still be referred
@@ -450,8 +398,6 @@ class _CFlake8View(wingview.CViewController):
 
         return _("Flake8 Panel")
 
-
-
     def GetCommandMap(self):
         """ Get the command map object for this view. """
 
@@ -510,8 +456,8 @@ class _CFlake8View(wingview.CViewController):
         kPopupDefn = [
             (update_label, 'flake8-execute', {'uscoremagic': False}),
             (update_label2, 'flake8-package-execute', {'uscoremagic': False}),
-            #None,
-            #(_("Show Flake8 Tool Documentation"), 'flake8-show-docs'),
+            # None,
+            # (_("Show Flake8 Tool Documentation"), 'flake8-show-docs'),
         ]
 
         # Create menu
@@ -569,6 +515,7 @@ class _CFlake8View(wingview.CViewController):
             else:
                 title_list[1] = _("Message")
             tree.set_titles(title_list)
+
 
 # Register this panel type:    Note that this needs to be at the
 # very end of the module so that all the classes defined here

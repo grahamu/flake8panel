@@ -35,7 +35,7 @@ TOOL_ARGS = ['--statistics']  # Add args but don't remove this one!
 AUTORELOAD = True  # Set to True to activate autoreloading after file save
 
 # ------------------------------ /CONFIGURATION ------------------------------
-FLAKE8PANEL_VERSION = "0.1"
+FLAKE8PANEL_VERSION = "0.2"
 
 
 _AI = wingapi.CArgInfo
@@ -283,10 +283,8 @@ def _connect_to_presave(doc):
         # Avoid operation when saving a copy to another location
         if filename is not None:
             return
-        # Get editor and do action
-        ed = wingapi.gApplication.OpenEditor(doc.GetFilename())
-        if ed is not None:
-            _flake8_execute([doc.GetFilename()])
+        # Do action
+        _flake8_execute([doc.GetFilename()])
     connect_id = doc.Connect('presave', _on_presave)
 
 

@@ -285,7 +285,7 @@ def _connect_to_presave(doc):
             return
         # Do action
         _flake8_execute([doc.GetFilename()])
-    connect_id = doc.Connect('presave', _on_presave)
+    doc.Connect('presave', _on_presave)
 
 
 def _init():
@@ -380,7 +380,6 @@ class _CFlake8View(wingview.CViewController):
     def set_tree_contents(self, tree_contents):
         idx = 0
         for catkey, labeltext, tooltip in gMessageCategories:
-            label = gViews[0].fLabels[catkey]
             tb = gViews[0].fGtkWidget.tabBar()
             tb.setTabText(idx, '(%i)' % len(tree_contents[idx]))
             tree, sview = gViews[0].fTrees[catkey]
@@ -473,7 +472,6 @@ class _CFlake8View(wingview.CViewController):
         pos = self.__fNotebook.get_current_page()
         catkey, label, tdir = gMessageCategories[pos]
         tree, sview = self.fTrees[catkey]
-        rows = tree.GetSelectedContent()
 
     def __CB_ButtonPress(self, tree, event):
         app = wingapi.gApplication
@@ -497,7 +495,7 @@ class _CFlake8View(wingview.CViewController):
                     except:
                         line = 1
                     doc = app.OpenEditor(filename)
-                    doc.ScrollToLine(lineno=line - 1, pos='center', select=1)
+                    doc.ScrollToLine(lineno=line-1, pos='center', select=1)
 
     def __PopupMenu(self, event, pos):
         """Callback to display the popup menu"""
@@ -519,4 +517,3 @@ class _CFlake8View(wingview.CViewController):
 # very end of the module so that all the classes defined here
 # are already available
 _CFlake8PanelDefn(wingapi.gApplication.fSingletons)
-

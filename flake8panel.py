@@ -288,10 +288,23 @@ def _connect_to_presave(doc):
     doc.Connect('presave', _on_presave)
 
 
+def _editor_changed(ed):
+    if ed is None:
+        return  # or clear the view?
+    filename = ed.GetDocument().GetFilename()
+    # update view with filename
+    _flake8_execute([filename])
+
+
 def _init():
     wingapi.gApplication.Connect('document-open', _connect_to_presave)
     for doc in wingapi.gApplication.GetOpenDocuments():
         _connect_to_presave(doc)
+
+    # Refresh display when active editor changes.
+    # This includes changing focus to a different editor window
+    # and opening a new file.
+    wingapi.gApplication.Connect('active-editor-changed', _editor_changed)
 
 
 if AUTORELOAD:
@@ -511,20 +524,6 @@ class _CFlake8View(wingview.CViewController):
             else:
                 title_list[1] = _("Message")
             tree.set_titles(title_list)
-
-
-def _editor_changed(ed):
-    if ed is None:
-        return  # or clear the view?
-    filename = ed.GetDocument().GetFilename()
-    # update view with filename
-    _flake8_execute([filename])
-
-
-# Refresh display when active editor changes
-# This includes changing focus to a different editor window
-# and opening a new file.
-wingapi.gApplication.Connect('active-editor-changed', _editor_changed)
 
 
 # Register this panel type:    Note that this needs to be at the

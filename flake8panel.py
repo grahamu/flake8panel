@@ -35,7 +35,7 @@ TOOL_ARGS = ['--statistics']  # Add args but don't remove this one!
 AUTORELOAD = True  # Set to True to activate autoreloading after file save
 
 # ------------------------------ /CONFIGURATION ------------------------------
-FLAKE8PANEL_VERSION = "0.2"
+FLAKE8PANEL_VERSION = "0.3"
 
 
 _AI = wingapi.CArgInfo
@@ -511,6 +511,20 @@ class _CFlake8View(wingview.CViewController):
             else:
                 title_list[1] = _("Message")
             tree.set_titles(title_list)
+
+
+def _editor_changed(ed):
+    if ed is None:
+        return  # or clear the view?
+    filename = ed.GetDocument().GetFilename()
+    # update view with filename
+    _flake8_execute([filename])
+
+
+# Refresh display when active editor changes
+# This includes changing focus to a different editor window
+# and opening a new file.
+wingapi.gApplication.Connect('active-editor-changed', _editor_changed)
 
 
 # Register this panel type:    Note that this needs to be at the

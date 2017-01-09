@@ -9,15 +9,16 @@ import os
 import re
 import sys
 import time
+
 import wingapi
 
+# These imports are reaching through the formal API
 from command import commandmgr
 import guimgr.menus
 from guiutils import wgtk
 from guiutils import dockview
 from guiutils import wingview
 from guiutils import winmgr
-from wingbase import location
 from wingbase import miscutils
 
 # Scripts can be internationalized with gettext.    Strings to be translated
@@ -190,7 +191,7 @@ def _get_selected_python_files():
         return []
     python_files = []
     for filename in filenames:
-        mimetype = _GetMimeType(filename)
+        mimetype = wingapi.gApplication.GetMimeType(filename)
         if mimetype == 'text/x-python':
             python_files.append(filename)
     return python_files
@@ -380,11 +381,6 @@ def _init():
 
 if AUTORELOAD:
     _init()
-
-
-def _GetMimeType(filename):
-    loc = location.CreateFromName(filename)
-    return wingapi.gApplication.fSingletons.fFileAttribMgr.GetProbableMimeType(loc)
 
 
 # Note that panel IDs must be globally unique so all user-provided panels

@@ -60,7 +60,8 @@ def _find_flake8():
         if os.path.exists(candidate):
             cmd = candidate
     return cmd
-    
+
+
 def _validate_config():
     errors = []
     cmd = _find_flake8()
@@ -68,31 +69,33 @@ def _validate_config():
         errors.append(_("Could not find command %s on the PATH") % TOOL_COMMAND)
     if not errors:
         return True
-    
+
     title = _("Flake8 Configuration Errors")
     fn = __file__
     if fn.endswith('.pyc') or fn.endswith('.pyo'):
         fn = fn[:-1]
-    msg = _("The flake8panel.py script could not load, due to the following configuration "
-            "errors:") + '\n\n' + '\n'.join(errors) + '\n\n' + \
-        _("Edit the CONFIGURATION section in the file %s and then use Reload All Scripts "
-          "from Wing's Edit menu to try again.") % fn
-    
+    msg = _("The flake8panel.py script could not load, due to the following "
+            "configuration errors:") + '\n\n' + '\n'.join(errors) + '\n\n' + \
+        _("Edit the CONFIGURATION section in the file %s and then use Reload "
+          "All Scripts from Wing's Edit menu to try again.") % fn
+
     wingapi.gApplication.ShowMessageDialog(title, msg)
     return False
-    
+
+
 VALID_CONFIG = False
+
 
 def _check_config(*args):
     global VALID_CONFIG
     if wingapi.gApplication.GetProject() is None:
         return True
-    was_valid = VALID_CONFIG
     VALID_CONFIG = _validate_config()
     if VALID_CONFIG:
         _editor_changed(wingapi.gApplication.GetActiveEditor())
     return False
-    
+
+
 wingapi.gApplication.Connect('project-open', _check_config)
 wingapi.gApplication.InstallTimeout(1000, _check_config)
 
@@ -309,8 +312,8 @@ def _flake8_execute(filenames):
             if err:
                 app.ShowMessageDialog(
                     _("Flake8 Failed"),
-                    _("Error executing Flake8:    "
-                      "Command failed with error=%i; stderr:\n%s") % (err, stderr)
+                    _("Error executing Flake8:    Command failed with "
+                      "error=%i; stderr:\n%s") % (err, stderr)
                 )
             else:
                 _update_tree(stdout)
@@ -318,11 +321,13 @@ def _flake8_execute(filenames):
         elif time.time() > start_time + timeout:
             view._ShowStatusMessage('')
             stdout, stderr, err, status = handler.Terminate()
-            app.ShowMessageDialog(_("Flake8 Timed Out"),
-                                  _("Flake8 timed out:    "
-                                    "Command did not complete within timeout of %i seconds.    "
-                                    "Right click on the Flake8 tool to configure this value.    "
-                                    "Output from Flake8:\n\n%s") % (timeout, stderr + stdout))
+            app.ShowMessageDialog(
+                _("Flake8 Timed Out"),
+                _("Flake8 timed out:    "
+                  "Command did not complete within timeout of %i seconds.    "
+                  "Right click on the Flake8 tool to configure this value.    "
+                  "Output from Flake8:\n\n%s") % (timeout, stderr + stdout)
+            )
             return False
         else:
             if int(time.time()) > last_dot[0]:
@@ -368,13 +373,14 @@ def _init():
     # This includes changing focus to a different editor window
     # and opening a new file.
     wingapi.gApplication.Connect('active-editor-changed', _editor_changed)
-    
+
     # Update the first time after script reload
     _editor_changed(wingapi.gApplication.GetActiveEditor())
 
 
 if AUTORELOAD:
     _init()
+
 
 def _GetMimeType(filename):
     loc = location.CreateFromName(filename)
@@ -490,7 +496,8 @@ class _CFlake8View(wingview.CViewController):
         notebook = wgtk.Notebook()
 
         for catkey, label, tooltip in gMessageCategories:
-            tree = wgtk.SimpleTree([_("Line"), _("Message"), _("Full Path"), _("Line Number")])
+            tree = wgtk.SimpleTree([_("Line"), _("Message"), _("Full Path"),
+                                    _("Line Number")])
             tree.setColumnHidden(2, True)
             tree.setColumnHidden(3, True)
 
@@ -542,7 +549,11 @@ class _CFlake8View(wingview.CViewController):
             is_popup=1, static=1
         )
         menu = guimgr.menus.CMenu(
-            _("Flake8"), self.fSingletons.fGuiMgr, defnlist, can_tearoff=0, is_popup=1
+            _("Flake8"),
+            self.fSingletons.fGuiMgr,
+            defnlist,
+            can_tearoff=0,
+            is_popup=1
         )
         gViews[0] = self
         return menu

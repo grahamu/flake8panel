@@ -49,9 +49,16 @@ def _find_flake8():
     proj = wingapi.gApplication.GetProject()
     if proj is None:
         env = os.environ
+        pyexec = None
     else:
         env = proj.GetEnvironment()
+        pyexec = proj.GetPythonExecutable(None)
     cmd = miscutils.FindExecutable(TOOL_COMMAND, env)
+    if cmd is None and pyexec is not None:
+        pydir = os.path.dirname(pyexec)
+        candidate = os.path.join(pydir, TOOL_COMMAND)
+        if os.path.exists(candidate):
+            cmd = candidate
     return cmd
     
 def _validate_config():

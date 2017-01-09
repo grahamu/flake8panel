@@ -18,6 +18,16 @@ from guiutils import dockview
 from guiutils import wingview
 from guiutils import winmgr
 from wingbase import location
+from wingbase import miscutils
+
+# Scripts can be internationalized with gettext.    Strings to be translated
+# are sent to _() as in the code below.
+_ = gettext.translation('scripts_flake8panel', fallback=1).ugettext
+
+# This special attribute is used so that the script manager can translate
+# also docstrings for the commands found here
+_i18n_module = 'scripts_flake8panel'
+
 
 # ------------------------------ CONFIGURATION -------------------------------
 
@@ -34,19 +44,43 @@ TOOL_COMMAND = 'flake8'
 TOOL_ARGS = ['--statistics']  # Add args but don't remove this one!
 AUTORELOAD = True  # Set to True to activate autoreloading after file save
 
+
+def _find_flake8():
+    proj = wingapi.gApplication.GetProject()
+    if proj is None:
+        env = os.environ
+    else:
+        env = proj.GetEnvironment()
+    cmd = miscutils.FindExecutable(TOOL_COMMAND, env)
+    return cmd
+    
+def _validate_config():
+    errors = []
+    cmd = _find_flake8()
+    if cmd is None:
+        errors.append(_("Could not find command %s on the PATH") % TOOL_COMMAND)
+    if not errors:
+        return True
+    
+    title = _("Flake8 Configuration Errors")
+    fn = __file__
+    if fn.endswith('.pyc') or fn.endswith('.pyo'):
+        fn = fn[:-1]
+    msg = _("The flake8panel.py script could not load, due to the following configuration "
+            "errors:") + '\n\n' + '\n'.join(errors) + '\n\n' + \
+        _("Edit the CONFIGURATION section in the file %s and then use Reload All Scripts "
+          "from Wing's Edit menu to try again.") % fn
+    
+    wingapi.gApplication.ShowMessageDialog(title, msg)
+    return False
+    
+VALID_CONFIG = _validate_config()
+
 # ------------------------------ /CONFIGURATION ------------------------------
 FLAKE8PANEL_VERSION = "0.3"
 
 
 _AI = wingapi.CArgInfo
-
-# Scripts can be internationalized with gettext.    Strings to be translated
-# are sent to _() as in the code below.
-_ = gettext.translation('scripts_flake8panel', fallback=1).ugettext
-
-# This special attribute is used so that the script manager can translate
-# also docstrings for the commands found here
-_i18n_module = 'scripts_flake8panel'
 
 ######################################################################
 # Utilities
@@ -146,6 +180,10 @@ def _flake8_execute(filenames):
     view = gViews[0]
     app = wingapi.gApplication
 
+    if not VALID_CONFIG:
+        view._ShowStatusMessage(_("Cannot execute: Invalid configuration"))
+        return
+
     is_dir = os.path.isdir(filenames[0])
     if is_dir and '--filename=*.py' not in TOOL_ARGS:
         TOOL_ARGS.append("--filename=*.py")
@@ -226,7 +264,7 @@ def _flake8_execute(filenames):
         return retval
 
     # Execute flake8 asyncronously
-    cmd = TOOL_COMMAND
+    cmd = _find_flake8()
     args = []
     args.extend(arg_split(' '.join(TOOL_ARGS), ' '))
     import config
@@ -310,7 +348,6 @@ def _init():
 if AUTORELOAD:
     _init()
 
-
 def _GetMimeType(filename):
     loc = location.CreateFromName(filename)
     return wingapi.gApplication.fSingletons.fFileAttribMgr.GetProbableMimeType(loc)
@@ -375,6 +412,7 @@ class _CFlake8View(wingview.CViewController):
 
         # External managers
         self.fSingletons = singletons
+        self.wgtk = wgtk
 
         self.__fCmdMap = _CFlake8ViewCommands(self.fSingletons, self)
 
@@ -388,7 +426,7 @@ class _CFlake8View(wingview.CViewController):
 
     def _destroy_impl(self):
         for tree, sview in self.fTrees.values():
-            wgtk.Destroy(tree)
+            self.wgtk.Destroy(tree)
 
     def set_tree_contents(self, tree_contents):
         idx = 0

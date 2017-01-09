@@ -81,7 +81,21 @@ def _validate_config():
     wingapi.gApplication.ShowMessageDialog(title, msg)
     return False
     
-VALID_CONFIG = _validate_config()
+VALID_CONFIG = False
+
+def _check_config(*args):
+    global VALID_CONFIG
+    if wingapi.gApplication.GetProject() is None:
+        return True
+    was_valid = VALID_CONFIG
+    VALID_CONFIG = _validate_config()
+    if VALID_CONFIG:
+        _editor_changed(wingapi.gApplication.GetActiveEditor())
+    return False
+    
+wingapi.gApplication.Connect('project-open', _check_config)
+wingapi.gApplication.InstallTimeout(1000, _check_config)
+
 
 # ------------------------------ /CONFIGURATION ------------------------------
 FLAKE8PANEL_VERSION = "0.3"
@@ -189,6 +203,7 @@ def _flake8_execute(filenames):
 
     if not VALID_CONFIG:
         view._ShowStatusMessage(_("Cannot execute: Invalid configuration"))
+        view.set_tree_contents([[], [], []])
         return
 
     is_dir = os.path.isdir(filenames[0])
@@ -335,7 +350,10 @@ def _connect_to_presave(doc):
 
 def _editor_changed(ed):
     if ed is None:
-        return  # or clear the view?
+        view = gViews[0]
+        if view is not None:
+            view.set_tree_contents([[], [], []])
+        return
     filename = ed.GetDocument().GetFilename()
     # update view with filename
     _flake8_execute([filename])
@@ -350,6 +368,9 @@ def _init():
     # This includes changing focus to a different editor window
     # and opening a new file.
     wingapi.gApplication.Connect('active-editor-changed', _editor_changed)
+    
+    # Update the first time after script reload
+    _editor_changed(wingapi.gApplication.GetActiveEditor())
 
 
 if AUTORELOAD:

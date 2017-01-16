@@ -9,15 +9,26 @@ import os
 import re
 import sys
 import time
+
 import wingapi
 
+# These imports are reaching through the formal API
 from command import commandmgr
 import guimgr.menus
 from guiutils import wgtk
 from guiutils import dockview
 from guiutils import wingview
 from guiutils import winmgr
-from wingbase import location
+from wingbase import miscutils
+
+# Scripts can be internationalized with gettext.    Strings to be translated
+# are sent to _() as in the code below.
+_ = gettext.translation('scripts_flake8panel', fallback=1).ugettext
+
+# This special attribute is used so that the script manager can translate
+# also docstrings for the commands found here
+_i18n_module = 'scripts_flake8panel'
+
 
 # ------------------------------ CONFIGURATION -------------------------------
 
@@ -34,19 +45,67 @@ TOOL_COMMAND = 'flake8'
 TOOL_ARGS = ['--statistics']  # Add args but don't remove this one!
 AUTORELOAD = True  # Set to True to activate autoreloading after file save
 
+
+def _find_flake8():
+    proj = wingapi.gApplication.GetProject()
+    if proj is None:
+        env = os.environ
+        pyexec = None
+    else:
+        env = proj.GetEnvironment()
+        pyexec = proj.GetPythonExecutable(None)
+    cmd = miscutils.FindExecutable(TOOL_COMMAND, env)
+    if cmd is None and pyexec is not None:
+        pydir = os.path.dirname(pyexec)
+        candidate = os.path.join(pydir, TOOL_COMMAND)
+        if os.path.exists(candidate):
+            cmd = candidate
+    return cmd
+
+
+def _validate_config():
+    errors = []
+    cmd = _find_flake8()
+    if cmd is None:
+        errors.append(_("Could not find command %s on the PATH") % TOOL_COMMAND)
+    if not errors:
+        return True
+
+    title = _("Flake8 Configuration Errors")
+    fn = __file__
+    if fn.endswith('.pyc') or fn.endswith('.pyo'):
+        fn = fn[:-1]
+    msg = _("The flake8panel.py script could not load, due to the following "
+            "configuration errors:") + '\n\n' + '\n'.join(errors) + '\n\n' + \
+        _("Edit the CONFIGURATION section in the file %s and then use Reload "
+          "All Scripts from Wing's Edit menu to try again.") % fn
+
+    wingapi.gApplication.ShowMessageDialog(title, msg)
+    return False
+
+
+VALID_CONFIG = False
+
+
+def _check_config(*args):
+    global VALID_CONFIG
+    if wingapi.gApplication.GetProject() is None:
+        return True
+    VALID_CONFIG = _validate_config()
+    if VALID_CONFIG:
+        _editor_changed(wingapi.gApplication.GetActiveEditor())
+    return False
+
+
+wingapi.gApplication.Connect('project-open', _check_config)
+wingapi.gApplication.InstallTimeout(1000, _check_config)
+
+
 # ------------------------------ /CONFIGURATION ------------------------------
 FLAKE8PANEL_VERSION = "0.3"
 
 
 _AI = wingapi.CArgInfo
-
-# Scripts can be internationalized with gettext.    Strings to be translated
-# are sent to _() as in the code below.
-_ = gettext.translation('scripts_flake8panel', fallback=1).ugettext
-
-# This special attribute is used so that the script manager can translate
-# also docstrings for the commands found here
-_i18n_module = 'scripts_flake8panel'
 
 ######################################################################
 # Utilities
@@ -132,7 +191,7 @@ def _get_selected_python_files():
         return []
     python_files = []
     for filename in filenames:
-        mimetype = _GetMimeType(filename)
+        mimetype = wingapi.gApplication.GetMimeType(filename)
         if mimetype == 'text/x-python':
             python_files.append(filename)
     return python_files
@@ -145,6 +204,11 @@ def _flake8_execute(filenames):
 
     view = gViews[0]
     app = wingapi.gApplication
+
+    if not VALID_CONFIG:
+        view._ShowStatusMessage(_("Cannot execute: Invalid configuration"))
+        view.set_tree_contents([[], [], []])
+        return
 
     is_dir = os.path.isdir(filenames[0])
     if is_dir and '--filename=*.py' not in TOOL_ARGS:
@@ -226,7 +290,7 @@ def _flake8_execute(filenames):
         return retval
 
     # Execute flake8 asyncronously
-    cmd = TOOL_COMMAND
+    cmd = _find_flake8()
     args = []
     args.extend(arg_split(' '.join(TOOL_ARGS), ' '))
     import config
@@ -249,8 +313,8 @@ def _flake8_execute(filenames):
             if err:
                 app.ShowMessageDialog(
                     _("Flake8 Failed"),
-                    _("Error executing Flake8:    "
-                      "Command failed with error=%i; stderr:\n%s") % (err, stderr)
+                    _("Error executing Flake8:    Command failed with "
+                      "error=%i; stderr:\n%s") % (err, stderr)
                 )
             else:
                 _update_tree(stdout)
@@ -258,11 +322,13 @@ def _flake8_execute(filenames):
         elif time.time() > start_time + timeout:
             view._ShowStatusMessage('')
             stdout, stderr, err, status = handler.Terminate()
-            app.ShowMessageDialog(_("Flake8 Timed Out"),
-                                  _("Flake8 timed out:    "
-                                    "Command did not complete within timeout of %i seconds.    "
-                                    "Right click on the Flake8 tool to configure this value.    "
-                                    "Output from Flake8:\n\n%s") % (timeout, stderr + stdout))
+            app.ShowMessageDialog(
+                _("Flake8 Timed Out"),
+                _("Flake8 timed out:    "
+                  "Command did not complete within timeout of %i seconds.    "
+                  "Right click on the Flake8 tool to configure this value.    "
+                  "Output from Flake8:\n\n%s") % (timeout, stderr + stdout)
+            )
             return False
         else:
             if int(time.time()) > last_dot[0]:
@@ -290,7 +356,10 @@ def _connect_to_presave(doc):
 
 def _editor_changed(ed):
     if ed is None:
-        return  # or clear the view?
+        view = gViews[0]
+        if view is not None:
+            view.set_tree_contents([[], [], []])
+        return
     filename = ed.GetDocument().GetFilename()
     # update view with filename
     _flake8_execute([filename])
@@ -306,14 +375,12 @@ def _init():
     # and opening a new file.
     wingapi.gApplication.Connect('active-editor-changed', _editor_changed)
 
+    # Update the first time after script reload
+    _editor_changed(wingapi.gApplication.GetActiveEditor())
+
 
 if AUTORELOAD:
     _init()
-
-
-def _GetMimeType(filename):
-    loc = location.CreateFromName(filename)
-    return wingapi.gApplication.fSingletons.fFileAttribMgr.GetProbableMimeType(loc)
 
 
 # Note that panel IDs must be globally unique so all user-provided panels
@@ -375,6 +442,7 @@ class _CFlake8View(wingview.CViewController):
 
         # External managers
         self.fSingletons = singletons
+        self.wgtk = wgtk
 
         self.__fCmdMap = _CFlake8ViewCommands(self.fSingletons, self)
 
@@ -388,7 +456,7 @@ class _CFlake8View(wingview.CViewController):
 
     def _destroy_impl(self):
         for tree, sview in self.fTrees.values():
-            wgtk.Destroy(tree)
+            self.wgtk.Destroy(tree)
 
     def set_tree_contents(self, tree_contents):
         idx = 0
@@ -424,7 +492,8 @@ class _CFlake8View(wingview.CViewController):
         notebook = wgtk.Notebook()
 
         for catkey, label, tooltip in gMessageCategories:
-            tree = wgtk.SimpleTree([_("Line"), _("Message"), _("Full Path"), _("Line Number")])
+            tree = wgtk.SimpleTree([_("Line"), _("Message"), _("Full Path"),
+                                    _("Line Number")])
             tree.setColumnHidden(2, True)
             tree.setColumnHidden(3, True)
 
@@ -476,7 +545,11 @@ class _CFlake8View(wingview.CViewController):
             is_popup=1, static=1
         )
         menu = guimgr.menus.CMenu(
-            _("Flake8"), self.fSingletons.fGuiMgr, defnlist, can_tearoff=0, is_popup=1
+            _("Flake8"),
+            self.fSingletons.fGuiMgr,
+            defnlist,
+            can_tearoff=0,
+            is_popup=1
         )
         gViews[0] = self
         return menu
